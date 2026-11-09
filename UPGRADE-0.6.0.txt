@@ -1,0 +1,42 @@
+Fresh Core 0.6.0
+================
+
+Cíl verze
+---------
+Fresh Core 0.6.0 odděluje běžnou konektivitu Fresh aplikací od účetních dat pro Edu a přidává centrální distribuci aktualizací z FreshCrackers.cz.
+
+Zpětná kompatibilita
+--------------------
+- Stávající READ key zůstává beze změny.
+- Stávající WRITE key zůstává beze změny.
+- Statický connector token a jeho cesta zůstávají beze změny.
+- Existující REST/content/SEO/media endpointy pro Lindu, Bobana a Karla nejsou přejmenované ani odstraněné.
+- Účetní rozhraní je nová samostatná vrstva s vlastním Accounting key a je ve výchozím stavu vypnuté.
+
+Novinky
+-------
+1. Autor pluginu: Fresh Crackers.
+2. Centrální aktualizace z update.json na FreshCrackers.cz.
+3. Ruční tlačítko „Zkontrolovat aktualizaci“ v Nástroje > Fresh Core.
+4. Volitelné automatické aktualizace přes standardní WordPress updater.
+5. SHA-256 kontrola instalačního ZIPu, pokud je checksum v update.json.
+6. Samostatný Accounting bridge pro Edu:
+   GET /wp-json/fresh-core/v1/accounting/ping
+   GET /wp-json/fresh-core/v1/accounting/orders
+   GET /wp-json/fresh-core/v1/accounting/orders/{id}
+   Header: X-Fresh-Core-Accounting-Key
+7. Detail objednávky obsahuje fakturační údaje, položky, ceny, DPH, platbu, slevy, dopravu a další podklady pro vytvoření faktury v ABRA Flexi.
+8. Statický orders.json zůstává bez zákaznických PII.
+
+Doporučené nasazení
+-------------------
+1. Nahrát plugin přes stávající Fresh Core nebo použít WordPress aktualizaci.
+2. Ověřit, že Linda/Boban/Karel stále používají stejné READ/WRITE klíče a manifest URL.
+3. V Nástroje > Fresh Core zapnout Accounting bridge pouze na webech, které budou připojené k Edovi.
+4. Accounting key vložit pouze do Edy. Nezapisovat jej do statického manifestu.
+5. Na FreshCrackers.cz nahrát centrální update.json a ZIP verze na URL nastavenou v administraci Fresh Core.
+
+Centrální produkt / download
+---------------------------
+Produktová stránka: https://www.freshcrackers.cz/produkt/fresh-core/
+Doporučeno použít jeden fyzický soubor /wp-content/uploads/fresh-core/fresh-core.zip jak pro WooCommerce download, tak pro plugin updater.

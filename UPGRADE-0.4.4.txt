@@ -1,0 +1,16 @@
+Fresh Core 0.4.4 – image ALT + page context
+
+Co přidává:
+- do seo/index.json přidává page_role a seznam použitých obrázků (attachment ID, URL, ALT, kontext),
+- bezpečný write endpoint /wp-json/fresh-core/v1/media/apply-alt,
+- žádný obecný zápis obsahu ani Elementor dat – write bridge zůstává allow-listovaný,
+- stávající write key a nastavení zůstávají zachované.
+
+Po aktualizaci:
+1. Plugin nahraj přes stávající Fresh Core.
+2. Nástroje → Fresh Core → Obnovit data teď.
+3. Ve Web Boosteru spusť synchronizaci Fresh Core.
+4. Ve /health Web Boosteru ověř verzi aplikace a u projektu Core 0.4.4.
+
+Důležité:
+ALT endpoint funguje pouze při zapnutém SEO write bridge a používá stejný samostatný write key.

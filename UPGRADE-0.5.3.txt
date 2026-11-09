@@ -1,0 +1,11 @@
+Fresh Core 0.5.3 — Eda / WooCommerce orders feed
+
+1) Nahraj celý adresář fresh-core přes stávající Fresh Core 0.5.2.
+2) Plugin ponech aktivní; existující READ/WRITE klíče i manifest token zůstávají zachované.
+3) WordPress → Nástroje → Fresh Core → Obnovit data teď.
+4) Otevři manifest.json a ověř sekci commerce.orders_feed_url.
+5) V Edovi u e-shopu klikni Ověřit a poté Načíst objednávky.
+
+Nově se exportuje sanitizovaný WooCommerce feed commerce/orders.json. Neobsahuje jméno, adresu, telefon ani e-mail zákazníka. Obsahuje finanční data nutná pro Edu: ID/číslo objednávky, stav, datum, částku, měnu, způsob platby, stav úhrady, transaction ID a položky objednávky.
+
+Objednávkový feed funguje i s WooCommerce HPOS, protože používá wc_get_orders().

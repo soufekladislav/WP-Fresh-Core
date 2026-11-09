@@ -1,0 +1,9 @@
+Fresh Core 0.4.2
+
+- opravuje průběžnou aktualizaci statického exportu po změně obsahu,
+- používá samostatný one-off hook fresh_core_refresh_static_export_near,
+- relevantní změna naplánuje obnovu přibližně za 90 sekund,
+- pravidelný 15minutový refresh zůstává jako fallback,
+- SEO write bridge a batch endpoint z 0.4.1 zůstávají beze změny a ve výchozím stavu vypnuté.
+
+Po aktualizaci není potřeba znovu párovat manifest ani write key. Doporučeno jednou kliknout Nástroje → Fresh Core → Obnovit data teď.

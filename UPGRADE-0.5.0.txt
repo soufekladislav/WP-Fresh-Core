@@ -1,0 +1,25 @@
+Fresh Core 0.5.0 — upgrade z 0.4.6
+
+1) Zálohuj databázi WordPressu a současný plugin Fresh Core.
+2) Nahraj/aktualizuj celý adresář fresh-core na verzi 0.5.0.
+3) Plugin ponech aktivní; stávající Connector Manifest URL a write key zůstávají zachované.
+4) WordPress → Nástroje / Fresh Core:
+   - nech SEO provider nejprve na „Auto – použít aktivní SEO plugin“,
+   - ověř write bridge,
+   - klikni „Obnovit data teď“.
+5) Pokud používáš AIOSEO / Yoast / Rank Math, plugin zatím NEVYPÍNEJ.
+   Volitelně použij „Zkopírovat SEO data do Fresh Core“ – jde pouze o shadow import.
+6) Zkontroluj dashboard „Boban – SEO přehled“ a SEO panel u stránky/článku/produktu.
+7) Ve Web Boosteru proveď Synchronizovat Core.
+
+0.5.0 připravuje společnou modulární vrstvu pro Bobana, Lindu a další Fresh zaměstnance.
+Vypnutí plného SEO pluginu bude bezpečné až po ověření funkcí, které konkrétní web používá
+(schema, social metadata a další rozšíření nejsou v 0.5.0 plně nahrazená).
+
+
+Integrovaný Content Bridge (Linda / další Fresh aplikace)
+- Není potřeba instalovat druhý WordPress plugin.
+- Read key: /content/export, /content/preview-url, /content/status, /analytics/summary.
+- Write key: /write/content/upsert.
+- Content upsert je allow-list pouze pro post/page, podporuje change_id (bezpečný retry) a external_id (stabilní mapování externího obsahu).
+- Write bridge je nadále ve výchozím stavu vypnutý; stejný neveřejný write key chrání SEO i content write operace.

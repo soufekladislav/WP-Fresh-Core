@@ -1,0 +1,9 @@
+Fresh Core 0.4.5
+================
+
+- přidává write-auth lookup POST /wp-json/fresh-core/v1/media/resolve
+- převádí renderovanou URL obrázku (včetně běžných thumbnail variant) na WordPress attachment ID
+- umožňuje Web Boosteru převést crawler nález chybějícího ALT na skutečně publikovatelný úkol
+- zachovává allow-list write bridge; žádný obecný zápis do obsahu ani databáze nepřibyl
+
+Po aktualizaci pluginu obnov statický export Fresh Core a ve Web Boosteru spusť synchronizaci Core + nový crawl.

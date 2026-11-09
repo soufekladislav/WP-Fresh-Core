@@ -1,0 +1,22 @@
+FRESH CORE 0.4.1
+
+Aktualizace:
+1. Nahraj ZIP jako běžnou aktualizaci pluginu.
+2. Otevři Nástroje → Fresh Core.
+3. Klikni „Obnovit data teď“.
+4. Pro Web Booster zkopíruj Connector Manifest URL.
+5. Pro čtení není potřeba zapínat write bridge.
+6. Pokud chceš povolit změny:
+   - zaškrtni SEO write bridge
+   - Uložit nastavení
+   - zkopíruj Write REST base URL a Write key do Web Boosteru
+
+Nové v 0.4.1:
+- bezpečný batch endpoint /seo/apply-batch pro max. 50 změn
+- stejné allow-listed pole jako u jednotlivé změny
+- samostatný výsledek pro každý post
+
+Důležité:
+- write bridge je po aktualizaci vypnutý
+- Connector Manifest je read-only
+- write key se do manifestu nikdy nezapisuje

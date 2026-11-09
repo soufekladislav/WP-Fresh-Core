@@ -1,0 +1,6 @@
+Fresh Core 0.4.3
+
+- SEO zápisy jsou nově idempotentní podle change_id.
+- Pokud Web Booster po timeoutu zopakuje stejný schválený úkol, Core ho podruhé nezapíše.
+- Vrátí success + duplicate=true a současný stav.
+- Write key, manifest URL a nastavení zůstávají zachované.

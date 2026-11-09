@@ -1,0 +1,8 @@
+Fresh Core 0.5.2
+================
+
+- Zachovává všechny funkce 0.5.1 pro Bobana i Lindu.
+- Opravuje kompatibilitu s WordPress/security pluginy, které blokují anonymní REST ještě před permission_callback.
+- Výjimka platí výhradně pro namespace /fresh-core/v1/ a pouze při správném Fresh Core READ nebo WRITE klíči.
+- Route permission callback dál ověřuje konkrétní oprávnění; write bridge zůstává oddělený a musí být povolen.
+- READ klíč lze pro kompatibilitu poslat i jako fresh_core_key query parametr; WRITE klíč zůstává pouze v headeru.

@@ -1,0 +1,7 @@
+Fresh Core 0.4.6
+
+- zachovává URL resolver a bezpečný zápis ALT z 0.4.5
+- SEO export nově zahrnuje také WooCommerce product gallery (`_product_image_gallery`), nejen hlavní obrázek produktu
+- Boban tak může připravovat ALT návrhy i pro další produktové fotografie bez závislosti na omezeném crawler vzorku
+
+Po aktualizaci použij Nástroje → Fresh Core → Obnovit data teď.
