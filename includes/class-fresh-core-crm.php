@@ -104,7 +104,8 @@ final class Fresh_Core_CRM {
         $tick = chr( 96 ); // SQL identifier quoting for known WP-owned table names
         $rows = (array) $wpdb->get_results( $wpdb->prepare(
             "SELECT id, post_id, form_name, created_at FROM {$tick}{$table}{$tick}
-             WHERE id > %d ORDER BY id ASC LIMIT %d", $after, $limit + 1 ) );
+             WHERE type = 'submission' AND status <> 'trash'
+               AND id > %d ORDER BY id ASC LIMIT %d", $after, $limit + 1 ) );
         if ( ! $rows ) { return self::page( array(), 'elementor_submissions', $limit, $after ); }
         $ids = array_map( static fn($row) => (int) $row->id, $rows );
         $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
