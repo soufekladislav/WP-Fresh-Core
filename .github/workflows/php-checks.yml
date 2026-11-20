@@ -1,0 +1,13 @@
+name: Fresh Core PHP checks
+on:
+  push:
+  pull_request:
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP syntax
+        run: find . -name '*.php' -print0 | xargs -0 -n 1 php -l
+      - name: CRM bridge smoke
+        run: php -d zend.assertions=1 -d assert.exception=1 tests/crm-bridge-smoke.php
