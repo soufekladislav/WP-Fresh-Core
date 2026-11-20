@@ -35,8 +35,17 @@ class TestDB {
     public $prefix='wp_';
     public $users='wp_users';
     public $rows=[];
-    function prepare($query,...$args) { return $query; }
-    function get_var($query) { return strpos($query, 'TABLES')!==false ? 'wp_e_submissions' : ''; }
+    function prepare($query,...$args) {
+        foreach ($args as $a) {
+            $replacement = is_int($a) ? (string)$a : "'" . str_replace("'", "''", (string)$a) . "'";
+            $query = preg_replace('/%[sd]/', $replacement, $query, 1);
+        }
+        return $query;
+    }
+    function get_var($query) {
+        if (strpos($query,'e_submissions_values')!==false) return 'wp_e_submissions_values';
+        return strpos($query,'e_submissions')!==false ? 'wp_e_submissions' : '';
+    }
     function get_results($query) {
         if (strpos($query,'FROM wp_users')!==false) {
             return [(object)['ID'=>1,'user_email'=>'jan@example.cz','display_name'=>'Jan','user_registered'=>'2026-01-01'],
