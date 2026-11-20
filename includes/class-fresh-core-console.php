@@ -26,8 +26,9 @@ final class Fresh_Core_Console {
         Fresh_Core_Updater::clear_cache();
         delete_site_transient( 'update_plugins' );
         if ( ! function_exists( 'wp_update_plugins' ) ) { require_once ABSPATH . 'wp-includes/update.php'; }
-        wp_update_plugins();
+        // Refresh the central release FIRST. wp_update_plugins then receives the fresh data.
         $manifest = Fresh_Core_Updater::fetch_manifest( true );
+        if ( ! is_wp_error( $manifest ) ) { wp_update_plugins(); }
         $notice = is_wp_error( $manifest ) ? $manifest->get_error_message() : 'Kontrola dokončena. Nalezené aktualizace jsou zobrazeny v přehledu.';
         set_transient( 'fresh_core_update_check_' . get_current_user_id(), $notice, 120 );
         wp_safe_redirect( admin_url( 'admin.php?page=fresh-crackers' ) );

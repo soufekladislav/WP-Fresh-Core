@@ -20,6 +20,9 @@ final class Fresh_Core_Updater {
             self::clear_cache();
         }
         add_filter( 'pre_set_site_transient_update_plugins', array( __CLASS__, 'inject_update' ) );
+        // WordPress 5.8+ custom Update URI uses this provider-specific hook.
+        // Without it, WP may ignore third-party releases for this plugin.
+        add_filter( 'update_plugins_www.freshcrackers.cz', array( __CLASS__, 'provide_update_uri' ), 10, 4 );
         add_filter( 'plugins_api', array( __CLASS__, 'plugin_info' ), 20, 3 );
         add_filter( 'plugin_row_meta', array( __CLASS__, 'row_meta' ), 10, 2 );
         add_filter( 'auto_update_plugin', array( __CLASS__, 'auto_update' ), 10, 2 );
@@ -55,7 +58,14 @@ final class Fresh_Core_Updater {
 
         $url = esc_url_raw( self::manifest_url() );
         if ( ! $url ) { return new WP_Error( 'fresh_core_update_url_missing', 'Fresh Core update manifest URL is empty.' ); }
-        $response = wp_remote_get( $url, array(
+        $parsed = wp_parse_url( $url );
+        if ( ! is_array( $parsed ) || 'https' !== ( $parsed['scheme'] ?? '' ) ||
+             empty( $parsed['host'] ) || ! empty( $parsed['user'] ) || ! empty( $parsed['pass'] ) ||
+             ! empty( $parsed['query'] ) || ! empty( $parsed['fragment'] ) ||
+             basename( (string) ( $parsed['path'] ?? '' ) ) !== 'update.json' ) {
+            return new WP_Error( 'fresh_core_update_url_invalid', 'Update manifest must be an absolute HTTPS update.json URL without credentials or query parameters.' );
+        }
+        $response = wp_safe_remote_get( $url, array(
             'timeout' => 8,
             'redirection' => 3,
             'headers' => array( 'Accept' => 'application/json' ),
@@ -81,11 +91,55 @@ final class Fresh_Core_Updater {
         $data['version'] = sanitize_text_field( (string) $data['version'] );
         if ( ! empty( $data['download_url'] ) ) { $data['download_url'] = esc_url_raw( (string) $data['download_url'] ); }
         if ( ! empty( $data['product_url'] ) ) { $data['product_url'] = esc_url_raw( (string) $data['product_url'] ); }
-        if ( ! empty( $data['sha256'] ) ) { $data['sha256'] = strtolower( preg_replace( '/[^a-f0-9]/i', '', (string) $data['sha256'] ) ); }
+        $data['sha256'] = strtolower( trim( (string) ( $data['sha256'] ?? '' ) ) );
+        if ( ! preg_match( '/^\d+\.\d+\.\d+(?:\.\d+)?$/', $data['version'] ) ) {
+            $error = new WP_Error( 'fresh_core_update_invalid_version', 'Update manifest version is not valid.' );
+            update_option( 'fresh_core_update_last_error', $error->get_error_message(), false );
+            return $error;
+        }
+        $package = self::validate_package( $data, $url );
+        if ( is_wp_error( $package ) ) {
+            update_option( 'fresh_core_update_last_error', $package->get_error_message(), false );
+            return $package;
+        }
+        $data['download_url'] = $package;
         delete_option( 'fresh_core_update_last_error' );
         update_option( 'fresh_core_update_latest_version', $data['version'], false );
         set_site_transient( self::CACHE_KEY, $data, 6 * HOUR_IN_SECONDS );
         return $data;
+    }
+
+    public static function provide_update_uri( $update, array $plugin_data, string $plugin_file, $locales ) {
+        if ( plugin_basename( FRESH_CORE_FILE ) !== $plugin_file ) { return $update; }
+        $data = self::fetch_manifest( false );
+        if ( is_wp_error( $data ) || ! is_array( $data ) ||
+             version_compare( (string) $data['version'], FRESH_CORE_VERSION, '<=' ) ) { return false; }
+        return array(
+            'slug' => 'fresh-core',
+            'version' => (string) $data['version'],
+            'package' => (string) $data['download_url'],
+            'url' => ! empty( $data['product_url'] ) ? (string) $data['product_url'] : self::product_url(),
+            'requires' => (string) ( $data['requires'] ?? '6.2' ),
+            'requires_php' => (string) ( $data['requires_php'] ?? '7.4' ),
+        );
+    }
+
+    /** No cross-host or cross-directory downloads, and a mandatory checksum. */
+    private static function validate_package( array $data, string $manifest_url ) {
+        $uri = wp_parse_url( $manifest_url );
+        $package_url = esc_url_raw( (string) ( $data['download_url'] ?? '' ) );
+        $download = wp_parse_url( $package_url );
+        if ( ! is_array( $uri ) || ! is_array( $download ) ||
+            ( $uri['scheme'] ?? '' ) !== 'https' || ( $download['scheme'] ?? '' ) !== 'https' ||
+            strtolower( (string) ( $uri['host'] ?? '' ) ) !== strtolower( (string) ( $download['host'] ?? '' ) ) ||
+            (int) ( $uri['port'] ?? 443 ) !== (int) ( $download['port'] ?? 443 ) ||
+            ! empty( $download['query'] ) || ! empty( $download['fragment'] ) ||
+            (string) ( $download['path'] ?? '' ) !== trailingslashit( dirname( (string) ( $uri['path'] ?? '' ) ) ) . 'fresh-core.zip' ||
+            ! preg_match( '/^[a-f0-9]{64}$/', (string) ( $data['sha256'] ?? '' ) )
+        ) {
+            return new WP_Error( 'fresh_core_update_invalid_package', 'The update package must be fresh-core.zip in the manifest directory, on the same HTTPS host, with a valid SHA-256 digest.' );
+        }
+        return $package_url;
     }
 
     private static function update_object( array $data ): stdClass {
@@ -109,7 +163,10 @@ final class Fresh_Core_Updater {
         if ( version_compare( (string) $data['version'], FRESH_CORE_VERSION, '>' ) && ! empty( $data['download_url'] ) ) {
             $transient->response[ $basename ] = self::update_object( $data );
         } else {
-            $transient->no_update[ $basename ] = self::update_object( $data );
+            $current = $data;
+            if ( version_compare( $current['version'], FRESH_CORE_VERSION, '<' ) ) { $current['version'] = FRESH_CORE_VERSION; }
+            $transient->no_update[ $basename ] = self::update_object( $current );
+            unset( $transient->response[ $basename ] );
         }
         return $transient;
     }
@@ -151,10 +208,20 @@ final class Fresh_Core_Updater {
     public static function verify_package_hash( $reply, string $package, $upgrader, array $hook_extra ) {
         if ( false !== $reply ) { return $reply; }
         $plugin = (string) ( $hook_extra['plugin'] ?? '' );
-        if ( plugin_basename( FRESH_CORE_FILE ) !== $plugin ) { return $reply; }
+        $plugins = (array) ( $hook_extra['plugins'] ?? array() );
+        $basename = plugin_basename( FRESH_CORE_FILE );
+        // Also cover bulk/automatic upgrades that do not set hook_extra['plugin'].
         $data = self::fetch_manifest( false );
-        if ( is_wp_error( $data ) || ! is_array( $data ) || empty( $data['sha256'] ) ) { return $reply; }
-        if ( empty( $data['download_url'] ) || untrailingslashit( (string) $data['download_url'] ) !== untrailingslashit( $package ) ) { return $reply; }
+        $matches_package = is_array( $data ) &&
+            ! empty( $data['download_url'] ) && $package === (string) $data['download_url'];
+        $is_core = $basename === $plugin || in_array( $basename, $plugins, true ) || $matches_package;
+        if ( ! $is_core ) { return $reply; }
+        if ( is_wp_error( $data ) || ! is_array( $data ) ) {
+            return new WP_Error( 'fresh_core_update_manifest_unavailable', 'Cannot verify Fresh Core update: manifest is unavailable.' );
+        }
+        if ( ! $matches_package ) {
+            return new WP_Error( 'fresh_core_update_package_mismatch', 'Fresh Core package URL does not match the release manifest.' );
+        }
         if ( ! function_exists( 'download_url' ) ) { require_once ABSPATH . 'wp-admin/includes/file.php'; }
         $tmp = download_url( $package, 30 );
         if ( is_wp_error( $tmp ) ) { return $tmp; }

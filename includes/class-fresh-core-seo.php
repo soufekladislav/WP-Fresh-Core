@@ -494,6 +494,75 @@ final class Fresh_Core_SEO {
         );
     }
 
+    /**
+     * Find a real WordPress post by its exact permalink. Never guess from ID alone.
+     * This is intentionally strict: URLs outside this WordPress site's hostname,
+     * ambiguous slugs, attachment URLs and redirected/stale product URLs fail.
+     */
+    public static function resolve_url( string $url ) {
+        $url = trim( $url );
+        $parts = wp_parse_url( $url );
+        $home = wp_parse_url( home_url( '/' ) );
+        if ( ! is_array( $parts ) || ! is_array( $home ) ||
+            'https' !== strtolower( (string) ( $parts['scheme'] ?? '' ) ) ||
+            ! empty( $parts['user'] ) || ! empty( $parts['pass'] ) ||
+            ! empty( $parts['query'] ) || ! empty( $parts['fragment'] ) ||
+            empty( $parts['host'] ) ||
+            strtolower( (string) $parts['host'] ) !== strtolower( (string) ( $home['host'] ?? '' ) ) ||
+            (int) ( $parts['port'] ?? 443 ) !== (int) ( $home['port'] ?? 443 )
+        ) {
+            return new WP_Error( 'fresh_core_seo_url_invalid', 'SEO target URL must be an exact HTTPS permalink on this site.', array( 'status' => 422, 'permanent' => true ) );
+        }
+
+        $normalized = static function ( string $candidate ): string {
+            $p = wp_parse_url( $candidate );
+            if ( ! is_array( $p ) ) { return ''; }
+            return strtolower( (string) ( $p['host'] ?? '' ) ) . ':' . (int) ( $p['port'] ?? 443 ) .
+                '/' . trim( rawurldecode( (string) ( $p['path'] ?? '' ) ), '/' );
+        };
+        $wanted = $normalized( $url );
+        $candidate_ids = array();
+        $initial = (int) url_to_postid( $url );
+        if ( $initial > 0 ) { $candidate_ids[] = $initial; }
+        $slug = sanitize_title( rawurldecode( basename( rtrim( (string) ( $parts['path'] ?? '' ), '/' ) ) ) );
+        if ( '' !== $slug ) {
+            $types = get_post_types( array( 'public' => true ), 'names' );
+            if ( post_type_exists( 'product' ) ) { $types[] = 'product'; }
+            $types = array_values( array_unique( array_diff( $types, array( 'attachment' ) ) ) );
+            $matches = get_posts( array(
+                'name' => $slug,
+                'post_type' => $types,
+                'post_status' => array( 'publish', 'draft', 'pending', 'future', 'private' ),
+                'fields' => 'ids', 'posts_per_page' => 100,
+                'suppress_filters' => false,
+            ) );
+            foreach ( $matches as $id ) { $candidate_ids[] = (int) $id; }
+        }
+        $found = array();
+        foreach ( array_unique( $candidate_ids ) as $id ) {
+            $post = get_post( $id );
+            if ( ! $post instanceof WP_Post || ! self::allowed_post( $post ) ) { continue; }
+            if ( $normalized( (string) get_permalink( $id ) ) === $wanted ) { $found[] = (int) $id; }
+        }
+        if ( 1 !== count( $found ) ) {
+            return new WP_Error( 'fresh_core_seo_url_not_found', 'The target URL could not be mapped uniquely to an editable WordPress post.', array( 'status' => 404, 'permanent' => true ) );
+        }
+        return $found[0];
+    }
+
+    /** Resolve a stale Boban post ID only when an exact matching URL is supplied. */
+    public static function resolve_target( int $post_id, string $target_url = '' ) {
+        if ( '' !== trim( $target_url ) ) {
+            // An explicit target URL is authoritative; no silent edits to the old ID.
+            return self::resolve_url( $target_url );
+        }
+        $post = get_post( $post_id );
+        if ( ! $post instanceof WP_Post || ! self::allowed_post( $post ) ) {
+            return new WP_Error( 'fresh_core_seo_post', 'Post is missing or not allowed for SEO updates.', array( 'status' => 404, 'permanent' => true ) );
+        }
+        return $post_id;
+    }
+
     private static function sanitize_changes( array $changes ): array {
         $out = array();
         if ( array_key_exists( 'title', $changes ) ) {
@@ -591,11 +660,11 @@ final class Fresh_Core_SEO {
         return null;
     }
 
-    public static function apply( int $post_id, array $changes, string $change_id = '' ) {
-        $post = get_post( $post_id );
-        if ( ! $post instanceof WP_Post || ! self::allowed_post( $post ) ) {
-            return new WP_Error( 'fresh_core_seo_post', 'Post is missing or not allowed for SEO updates.', array( 'status' => 404 ) );
-        }
+    public static function apply( int $post_id, array $changes, string $change_id = '', string $target_url = '' ) {
+        $requested_post_id = $post_id;
+        $resolved = self::resolve_target( $post_id, $target_url );
+        if ( is_wp_error( $resolved ) ) { return $resolved; }
+        $post_id = (int) $resolved;
 
         $changes = self::sanitize_changes( $changes );
         if ( ! $changes ) {
@@ -609,6 +678,9 @@ final class Fresh_Core_SEO {
             return array(
                 'ok' => true,
                 'duplicate' => true,
+                'post_id' => $post_id,
+                'requested_post_id' => $requested_post_id,
+                'resolved_by_url' => '' !== $target_url && $post_id !== $requested_post_id,
                 'change_id' => $change_id,
                 'provider' => self::provider(),
                 'before' => $current,
@@ -639,6 +711,9 @@ final class Fresh_Core_SEO {
 
         return array(
             'ok' => true,
+            'post_id' => $post_id,
+            'requested_post_id' => $requested_post_id,
+            'resolved_by_url' => '' !== $target_url && $post_id !== $requested_post_id,
             'change_id' => $change_id,
             'provider' => self::provider(),
             'before' => $before,

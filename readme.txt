@@ -2,7 +2,7 @@
 Contributors: Fresh Crackers
 Requires at least: 6.2
 Requires PHP: 7.4
-Stable tag: 0.7.5
+Stable tag: 0.7.8
 
 Shared integration layer for Fresh WordPress projects and virtual employees.
 

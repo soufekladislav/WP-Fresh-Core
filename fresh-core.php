@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Fresh Core
  * Description: Shared integration layer for Fresh WordPress projects and virtual employees, with sanitized read connectors, modular events and an optional allow-listed write bridge for SEO and content.
- * Version: 0.7.6
+ * Version: 0.7.8
  * Author: Fresh Crackers
  * Author URI: https://www.freshcrackers.cz/
  * Plugin URI: https://www.freshcrackers.cz/produkt/fresh-core/
@@ -17,7 +17,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'FRESH_CORE_VERSION', '0.7.6' );
+define( 'FRESH_CORE_VERSION', '0.7.8' );
 define( 'FRESH_CORE_FILE', __FILE__ );
 define( 'FRESH_CORE_DIR', plugin_dir_path( __FILE__ ) );
 

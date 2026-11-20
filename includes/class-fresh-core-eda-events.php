@@ -12,8 +12,7 @@ final class Fresh_Core_Eda_Events {
     }
     public static function enabled(): bool {
         return Fresh_Core_Accounting::enabled()
-            && get_option('fresh_core_eda_events_enabled','no') === 'yes'
-            && strlen((string)get_option('fresh_core_eda_events_secret','')) >= 32;
+            && strlen(Fresh_Core_Accounting::get_key()) >= 32;
     }
     public static function notify($order_id): void {
         if (!self::enabled()) { return; }
@@ -33,7 +32,7 @@ final class Fresh_Core_Eda_Events {
         if (!self::enabled() || !function_exists('wc_get_order')) { return; }
         $order=wc_get_order(absint($order_id));
         if (!$order || $order instanceof WC_Order_Refund) { return; }
-        $url=(string)get_option('fresh_core_eda_events_url','');
+        $url='https://finance.freshcrackers.cz/api/v1/shop-events';
         $parts=wp_parse_url($url);
         if (!$parts || ($parts['scheme']??'') !== 'https' || ($parts['host']??'') !== 'finance.freshcrackers.cz'
             || ($parts['path']??'') !== '/api/v1/shop-events' || isset($parts['query']) || isset($parts['fragment'])) { return; }
@@ -41,7 +40,7 @@ final class Fresh_Core_Eda_Events {
         $body=wp_json_encode(array('event_id'=>$event_id, 'order_id'=>(int)$order->get_id(),
             'shop_url'=>home_url('/'), 'status'=>$order->get_status(), 'occurred_at'=>gmdate('c')));
         $ts=(string)time();
-        $signature=hash_hmac('sha256',$ts.'.'.$body,(string)get_option('fresh_core_eda_events_secret'));
+        $signature=hash_hmac('sha256',$ts.'.'.$body,Fresh_Core_Accounting::get_key());
         $response=wp_remote_post($url,array('timeout'=>25,'redirection'=>0,'blocking'=>true,'headers'=>array(
             'Content-Type'=>'application/json', 'X-Eda-Event-Timestamp'=>$ts,
             'X-Eda-Event-Signature'=>'sha256='.$signature), 'body'=>$body));

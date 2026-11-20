@@ -68,6 +68,15 @@ final class Fresh_Core_Content_Bridge {
         ) ) );
 
 
+        // Read-only, bounded variation pages for external product catalogues.
+        register_rest_route( 'fresh-core/v1', '/commerce/variations', array_merge( $read, array(
+            'methods' => 'GET', 'callback' => array( __CLASS__, 'commerce_variations' ),
+            'args' => array(
+                'page' => array( 'type' => 'integer', 'default' => 1 ),
+                'per_page' => array( 'type' => 'integer', 'default' => 25 ),
+            ),
+        ) ) );
+
         register_rest_route( 'fresh-core/v1', '/commerce/orders', array_merge( $read, array(
             'methods' => 'GET',
             'callback' => array( __CLASS__, 'commerce_orders' ),
@@ -129,6 +138,29 @@ final class Fresh_Core_Content_Bridge {
     }
 
 
+    private static function catalog_identifiers( $product ): array {
+        $id = (int) $product->get_id();
+        $gtin = method_exists( $product, 'get_global_unique_id' ) ? (string) $product->get_global_unique_id() : '';
+        // WooCommerce and common product-feed meta fields; return public identifiers only.
+        if ( '' === $gtin ) {
+            foreach ( array( '_global_unique_id', '_gtin', '_ean', 'ean', '_barcode', '_alg_ean', '_wpm_gtin_code' ) as $meta_key ) {
+                $candidate = trim( (string) get_post_meta( $id, $meta_key, true ) );
+                if ( preg_match( '/^[0-9]{8,14}$/', $candidate ) ) { $gtin = $candidate; break; }
+            }
+        }
+        $brand = '';
+        $parent_id = $product->is_type( 'variation' ) ? (int) $product->get_parent_id() : $id;
+        foreach ( array( 'product_brand', 'pwb-brand', 'yith_product_brand' ) as $taxonomy ) {
+            if ( ! taxonomy_exists( $taxonomy ) ) { continue; }
+            $names = wp_get_post_terms( $parent_id, $taxonomy, array( 'fields' => 'names' ) );
+            if ( ! is_wp_error( $names ) && ! empty( $names ) ) { $brand = (string) reset( $names ); break; }
+        }
+        if ( '' === $brand ) {
+            $brand = trim( (string) get_post_meta( $parent_id, '_brand', true ) );
+        }
+        return array( 'gtin' => sanitize_text_field( $gtin ), 'brand' => sanitize_text_field( $brand ) );
+    }
+
     private static function product_payload( int $post_id ): array {
         if ( ! function_exists( 'wc_get_product' ) ) { return array(); }
         $product = wc_get_product( $post_id );
@@ -159,6 +191,11 @@ final class Fresh_Core_Content_Bridge {
             'product_id' => $post_id,
             'type' => $product->get_type(),
             'sku' => $product->get_sku(),
+            'identifiers' => self::catalog_identifiers( $product ),
+            'description' => wp_strip_all_tags( strip_shortcodes( (string) $product->get_description() ) ),
+            'weight' => $product->get_weight(),
+            'manage_stock' => (bool) $product->managing_stock(),
+            'backorders_allowed' => (bool) $product->backorders_allowed(),
             'price' => $product->get_price(),
             'regular_price' => $product->get_regular_price(),
             'sale_price' => $product->get_sale_price(),
@@ -501,7 +538,7 @@ final class Fresh_Core_Content_Bridge {
         $featured = rest_sanitize_boolean( $request->get_param( 'featured' ) );
         $args = array(
             'post_type' => 'product', 'post_status' => 'publish', 'posts_per_page' => $per_page,
-            'paged' => $page, 'orderby' => 'modified', 'order' => 'DESC', 'suppress_filters' => false,
+            'paged' => $page, 'orderby' => 'ID', 'order' => 'ASC', 'suppress_filters' => false,
         );
         if ( '' !== $search ) { $args['s'] = $search; }
         if ( '' !== $category ) {
@@ -527,6 +564,50 @@ final class Fresh_Core_Content_Bridge {
             'total' => (int) $query->found_posts, 'total_pages' => (int) $query->max_num_pages,
             'has_more' => $page < (int) $query->max_num_pages, 'items' => $items,
         ) );
+    }
+
+    public static function commerce_variations( WP_REST_Request $request ) {
+        if ( ! self::product_enabled() || ! function_exists( 'wc_get_product' ) ) {
+            return self::ok( array( 'ok' => true, 'available' => false, 'items' => array(), 'total' => 0, 'total_pages' => 0 ) );
+        }
+        $page = max( 1, (int) $request->get_param( 'page' ) );
+        $per_page = max( 1, min( 50, (int) $request->get_param( 'per_page' ) ) );
+        $query = new WP_Query( array( 'post_type' => 'product_variation', 'post_status' => 'publish',
+            'posts_per_page' => $per_page, 'paged' => $page,
+            'orderby' => 'ID', 'order' => 'ASC', 'no_found_rows' => false ) );
+        $items = array();
+        foreach ( $query->posts as $post ) {
+            $variation = wc_get_product( $post->ID );
+            if ( ! $variation || ! $variation->is_type( 'variation' ) ) { continue; }
+            $parent_id = (int) $variation->get_parent_id();
+            if ( 'publish' !== get_post_status( $parent_id ) ) { continue; }
+            $parent = wc_get_product( $parent_id );
+            if ( ! $parent ) { continue; }
+            $identifier = self::catalog_identifiers( $variation );
+            $variant_attributes = array();
+            foreach ( $variation->get_variation_attributes() as $name => $value ) {
+                $taxonomy = str_replace( 'attribute_', '', $name );
+                $term = taxonomy_exists( $taxonomy ) ? get_term_by( 'slug', $value, $taxonomy ) : false;
+                $variant_attributes[$taxonomy] = $term && ! is_wp_error( $term ) ? $term->name : $value;
+            }
+            $items[] = array(
+                'variation_id' => (int) $post->ID, 'parent_id' => $parent_id,
+                'sku' => $variation->get_sku(), 'title' => $parent->get_name(),
+                'url' => get_permalink( $parent_id ),
+                'description' => wp_strip_all_tags( (string) $parent->get_short_description() ),
+                'price' => $variation->get_price(), 'regular_price' => $variation->get_regular_price(),
+                'sale_price' => $variation->get_sale_price(),
+                'currency' => get_woocommerce_currency(), 'stock_status' => $variation->get_stock_status(),
+                'purchasable' => (bool) $variation->is_purchasable(),
+                'identifiers' => $identifier, 'variant_attributes' => $variant_attributes,
+                'variant_attributes_raw' => $variation->get_variation_attributes(),
+                'image' => wp_get_attachment_image_url( $variation->get_image_id(), 'large' ) ?: get_the_post_thumbnail_url( $parent_id, 'large' ),
+            );
+        }
+        return self::ok( array( 'ok' => true, 'available' => true, 'page' => $page,
+            'per_page' => $per_page, 'total' => (int) $query->found_posts,
+            'total_pages' => (int) $query->max_num_pages,
+            'has_more' => $page < (int) $query->max_num_pages, 'items' => $items ) );
     }
 
     public static function commerce_product( WP_REST_Request $request ) {

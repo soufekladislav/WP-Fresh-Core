@@ -96,6 +96,9 @@ final class Fresh_Core_REST {
         register_rest_route( 'fresh-core/v1', '/seo/capabilities', array_merge( $p, array(
             'methods' => 'GET', 'callback' => fn() => self::ok( Fresh_Core_SEO::capabilities() ), 'args' => self::args(),
         ) ) );
+        register_rest_route( 'fresh-core/v1', '/seo/resolve', array_merge( $p, array(
+            'methods' => 'GET', 'callback' => array( __CLASS__, 'seo_resolve' ),
+        ) ) );
         register_rest_route( 'fresh-core/v1', '/seo/item', array_merge( $p, array(
             'methods' => 'GET', 'callback' => array( __CLASS__, 'seo_item' ), 'args' => array_merge( self::args(), array(
                 'id' => array( 'type' => 'integer', 'required' => true ),
@@ -169,6 +172,16 @@ final class Fresh_Core_REST {
         return self::ok( $data );
     }
 
+    public static function seo_resolve( WP_REST_Request $r ) {
+        $url = (string) $r->get_param( 'url' );
+        if ( '' === trim( $url ) ) {
+            return new WP_Error( 'fresh_core_seo_url_required', 'url is required.', array( 'status' => 400 ) );
+        }
+        $resolved = Fresh_Core_SEO::resolve_url( $url );
+        if ( is_wp_error( $resolved ) ) { return $resolved; }
+        return self::ok( Fresh_Core_SEO::item( (int) $resolved ) );
+    }
+
     public static function seo_apply( WP_REST_Request $r ) {
         $body = $r->get_json_params();
         $body = is_array( $body ) ? $body : array();
@@ -176,11 +189,12 @@ final class Fresh_Core_REST {
         $changes = isset( $body['changes'] ) && is_array( $body['changes'] ) ? $body['changes'] : array();
         $change_id = isset( $body['change_id'] ) ? sanitize_text_field( (string) $body['change_id'] ) : '';
 
-        if ( $post_id <= 0 ) {
-            return new WP_Error( 'fresh_core_seo_post_id', 'post_id is required.', array( 'status' => 400 ) );
+        $target_url = isset( $body['target_url'] ) ? (string) $body['target_url'] : '';
+        if ( $post_id <= 0 && '' === trim( $target_url ) ) {
+            return new WP_Error( 'fresh_core_seo_post_id', 'post_id or target_url is required.', array( 'status' => 400 ) );
         }
 
-        $result = Fresh_Core_SEO::apply( $post_id, $changes, $change_id );
+        $result = Fresh_Core_SEO::apply( $post_id, $changes, $change_id, $target_url );
         if ( is_wp_error( $result ) ) { return $result; }
         return self::ok( $result );
     }
@@ -235,12 +249,13 @@ final class Fresh_Core_REST {
             $post_id = isset( $item['post_id'] ) ? (int) $item['post_id'] : 0;
             $changes = isset( $item['changes'] ) && is_array( $item['changes'] ) ? $item['changes'] : array();
             $change_id = isset( $item['change_id'] ) ? sanitize_text_field( (string) $item['change_id'] ) : 'batch-' . ( $idx + 1 );
-            if ( $post_id <= 0 ) {
-                $results[] = array( 'ok' => false, 'post_id' => $post_id, 'change_id' => $change_id, 'error' => 'post_id is required.' );
+            $target_url = isset( $item['target_url'] ) ? (string) $item['target_url'] : '';
+            if ( $post_id <= 0 && '' === trim( $target_url ) ) {
+                $results[] = array( 'ok' => false, 'post_id' => $post_id, 'change_id' => $change_id, 'error' => 'post_id or target_url is required.' );
                 $failed++;
                 continue;
             }
-            $result = Fresh_Core_SEO::apply( $post_id, $changes, $change_id );
+            $result = Fresh_Core_SEO::apply( $post_id, $changes, $change_id, $target_url );
             if ( is_wp_error( $result ) ) {
                 $results[] = array( 'ok' => false, 'post_id' => $post_id, 'change_id' => $change_id, 'error' => $result->get_error_message() );
                 $failed++;
