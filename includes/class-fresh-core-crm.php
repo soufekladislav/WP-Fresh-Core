@@ -109,9 +109,15 @@ final class Fresh_Core_CRM {
         if ( ! $rows ) { return self::page( array(), 'elementor_submissions', $limit, $after ); }
         $ids = array_map( static fn($row) => (int) $row->id, $rows );
         $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+        // Read only whitelisted contact fields even from the database: never
+        // fetch message bodies, file URLs or unrelated answers into memory.
+        $keys = array( 'email', 'e_mail', 'e-mail', 'name', 'full_name', 'jmeno',
+            'first_name', 'last_name', 'phone', 'telefon', 'tel', 'company', 'firma', 'spolecnost' );
+        $key_placeholders = implode( ',', array_fill( 0, count( $keys ), '%s' ) );
         $values = (array) $wpdb->get_results( $wpdb->prepare(
             "SELECT submission_id, {$tick}key{$tick}, {$tick}value{$tick} FROM {$tick}{$values_table}{$tick}
-             WHERE submission_id IN ({$placeholders})", ...$ids ) );
+             WHERE submission_id IN ({$placeholders}) AND {$tick}key{$tick} IN ({$key_placeholders})",
+            ...array_merge( $ids, $keys ) ) );
         $by_id = array();
         foreach ( $values as $v ) { $by_id[ (int) $v->submission_id ][] = $v; }
         $items = array();
